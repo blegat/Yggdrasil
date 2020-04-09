@@ -4,8 +4,8 @@
  #
  # CFLAGS settings for 64 bit Linux/unix systems.
  #
--export CFLAGS=-march=native -mtune=native -fopenmp -ansi -Wall -DUSEOPENMP -DSETNUMTHREADS -DUSEGETTIME -I../include
-+export CFLAGS=-fopenmp -ansi -Wall -DUSEOPENMP -DSETNUMTHREADS -DUSEGETTIME -I../include
+-export CFLAGS=-march=native -mtune=native -fopenmp -Wall -DUSEOPENMP -DSETNUMTHREADS -DUSEGETTIME -I../include
++export CFLAGS=-fopenmp -Wall -DUSEOPENMP -DSETNUMTHREADS -DUSEGETTIME -I../include
  #
  # LIBS settings for 64 bit Linux/unix systems.
  #
