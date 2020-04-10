@@ -1,6 +1,6 @@
 --- a/include/declarations.h
 +++ b/include/declarations.h
-@@ -206,6 +206,11 @@ int sdp(int n, int k, struct blockmatrix
+@@ -206,6 +206,11 @@ int sdp(int n, int k, struct blockmatrix C, double *a, double constant_offset,
  	double *dy, double *dy1, double *Fp, int printlevel, 
  	struct paramstruc parameters);
  
@@ -12,7 +12,7 @@
  int easy_sdp(int n, int k, struct blockmatrix C, double *a, 
  	     struct constraintmatrix *constraints, double constant_offset,
  	     struct blockmatrix *pX, double **py, struct blockmatrix *pZ,
---- a/lib/debug-mat.c
+--- /dev/null
 +++ b/lib/debug-mat.c
 @@ -0,0 +1,122 @@
 +#include <stdio.h>
@@ -139,11 +139,11 @@
 +}
 --- a/lib/easysdp.c
 +++ b/lib/easysdp.c
-@@ -25,9 +25,32 @@
- int easy_sdp(n,k,C,a,constraints,constan
+@@ -24,10 +24,33 @@ int easy_sdp(n,k,C,a,constraints,constant_offset,pX,py,pZ,ppobj,pdobj)
+      struct blockmatrix *pZ;
       double *ppobj;
       double *pdobj;
- {
++{
 +   struct paramstruc params;
 +   int printlevel;
 +   /*
@@ -167,14 +167,14 @@
 +     double *pdobj;
 +     int printlevel;
 +     struct paramstruc params;
-+{
+ {
    int ret;
    struct constraintmatrix fill;
 -  struct paramstruc params;
    struct blockmatrix work1;
    struct blockmatrix work2;
    struct blockmatrix work3;
-@@ -53,7 +76,6 @@ int easy_sdp(n,k,C,a,constraints,constan
+@@ -53,7 +76,6 @@ int easy_sdp(n,k,C,a,constraints,constant_offset,pX,py,pZ,ppobj,pdobj)
    double *dy1;
    double *rhs;
    double *besty;
@@ -182,7 +182,7 @@
    int ldam;
    struct sparseblock **byblocks;
    struct sparseblock *ptr;
-@@ -68,13 +90,6 @@ int easy_sdp(n,k,C,a,constraints,constan
+@@ -68,13 +90,6 @@ int easy_sdp(n,k,C,a,constraints,constant_offset,pX,py,pZ,ppobj,pdobj)
    int denseblocks;
    int numblocks;
  
@@ -196,7 +196,7 @@
    /*
     *  Allocate working storage
     */
---- a/lib/julia.c
+--- /dev/null
 +++ b/lib/julia.c
 @@ -0,0 +1,268 @@
 +// API used by the Julia wrapper at https://github.com/JuliaOpt/CSDP.jl
@@ -497,7 +497,7 @@
  
  int read_prob(fname,pn,pk,pC,pa,pconstraints,printlevel)
       char *fname;
-@@ -22,662 +30,346 @@ int read_prob(fname,pn,pk,pC,pa,pconstra
+@@ -22,662 +30,346 @@ int read_prob(fname,pn,pk,pC,pa,pconstraints,printlevel)
       double **pa;
       struct constraintmatrix **pconstraints;
       int printlevel;
@@ -722,16 +722,20 @@
 -  
 -  /*
 -   * Null out all pointers in constraints.
--   */
++   *  In the final pass through the file, fill in the actual data.
+    */
 -  for (i=1; i<=*pk; i++)
 -    {
 -      myconstraints[i].blocks=NULL;
 -    };
--
+ 
 -  *pa=(double *)malloc((*pk+1)*sizeof(double));
 -
 -  if (*pa == NULL)
--    {
++  ret = load_prob(fname,buf,buflen,*problem,printlevel);
++  free(buf);
++  if (ret != 0)
+     {
 -      if (printlevel >= 1)
 -        printf("Storage allocation failed!\n");
 -      exit(205);
@@ -739,17 +743,16 @@
 -
 -  /*
 -   * And read the block structure.
-+   *  In the final pass through the file, fill in the actual data.
-    */
- 
--  *pn=0;
+-   */
 -
+-  *pn=0;
++      return ret;
++      free_loading_prob(*problem);
++    }
+ 
 -  ret=get_line(fid,buf,buflen);
 -  if (ret == 0)
-+  ret = load_prob(fname,buf,buflen,*problem,printlevel);
-+  free(buf);
-+  if (ret != 0)
-     {
+-    {
 -      /*
 -       * Decode nblocks numbers out of the buffer.  Put the results in 
 -       * block_structure.
@@ -786,10 +789,7 @@
 -		};
 -	      for (i=1; i<=abs(blksz); i++)
 -		pC->blocks[blk].data.vec[i]=0.0;
-+      return ret;
-+      free_loading_prob(*problem);
-+    }
- 
+-
 -	    }
 -	  else
 -	    {
@@ -1021,14 +1021,14 @@
 -	    };
 -
 -	  p->iindices=(int *)malloc((p->numentries+1)*sizeof(int));
--
+ 
 -          if (p->iindices == NULL)
 -	    {
 -              if (printlevel >= 1)
 -                printf("Storage allocation failed!\n");
 -	      exit(205);
 -	    };
- 
+-
 -	  p->jindices=(int *)malloc((p->numentries+1)*sizeof(int));
 -
 -          if (p->jindices == NULL)
