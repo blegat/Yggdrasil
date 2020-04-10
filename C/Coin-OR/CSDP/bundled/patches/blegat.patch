@@ -198,8 +198,10 @@
     */
 --- /dev/null
 +++ b/lib/julia.c
-@@ -0,0 +1,268 @@
-+// API used by the Julia wrapper at https://github.com/JuliaOpt/CSDP.jl
+@@ -0,0 +1,271 @@
++/*
++  API used by the Julia wrapper at https://github.com/JuliaOpt/CSDP.jl
++*/
 +
 +double getindex(block,i,j)
 +     struct blockrec block;
@@ -246,8 +248,10 @@
 +  return blockmat.blocks[blk];
 +}
 +
-+// Structure used to look problem with a O(1) lookup from block number
-+// too the pointer of the corresponding block.
++/*
++ * Structure used to look problem with a O(1) lookup from block number
++ * too the pointer of the corresponding block.
++ */
 +struct LoadingProblem
 +{
 +    int total_dimension;
@@ -271,10 +275,10 @@
 +    int length;
 +    struct sparseblock *sparse_block;
 +
-+    if (pC->blocks < 0)
++    if (pC->nblocks < 0)
 +      {
 +        if (printlevel >= 1)
-+          printf("Invalid number of blocks in matrix C: %d\n", pC->blocks);
++          printf("Invalid number of blocks in matrix C: %d\n", pC->nblocks);
 +        exit(1);
 +      }
 +    pC->blocks = (struct blockrec *) safe_malloc((pC->nblocks + 1) * sizeof(struct blockrec));
@@ -368,7 +372,6 @@
 +void free_loading_prob(loading_prob)
 +    struct LoadingProblem* loading_prob;
 +{
-+    int mat;
 +    free(loading_prob->constraint_block_lookup);
 +    free(loading_prob);
 +}
@@ -497,7 +500,7 @@
  
  int read_prob(fname,pn,pk,pC,pa,pconstraints,printlevel)
       char *fname;
-@@ -22,662 +30,346 @@ int read_prob(fname,pn,pk,pC,pa,pconstraints,printlevel)
+@@ -22,662 +30,352 @@ int read_prob(fname,pn,pk,pC,pa,pconstraints,printlevel)
       double **pa;
       struct constraintmatrix **pconstraints;
       int printlevel;
@@ -524,50 +527,17 @@
 -  struct sparseblock *p;
 -  int *isdiag;
 -  double *tempdiag;
--
++  int blk;
++  struct LoadingProblem *loading_prob;
+ 
 -  /*
 -   * Open the file for reading, and determine the length of the longest
 -   * line.
 -   */
--
--  fid=fopen(fname,"r");
-- 
--  if (fid == (FILE *) NULL)
--    {
--      if (printlevel >= 1)
--        printf("Couldn't open problem file for reading! \n");
--      exit(201);
--    };
--
--  /*
--   * This constant allows for up to 500000*20=10,000,000 byte long lines.
--   * You might see a line this long in a problem with 500000 constraints.
--   */
--  
--  buflen=8000000;
-+  int blk;
-+  struct LoadingProblem *loading_prob;
- 
--  buf=(char *)malloc(buflen*sizeof(char));
--  if (buf == NULL)
--    {
--      if (printlevel >= 1)
--        printf("Storage allocation failed!\n");
--      exit(205);
--    };
 +  ret = load_prob_from_file(fname,pC,&loading_prob,printlevel);
 +  if (ret != 0)
 +    return ret;
  
--  /*
--   * In the first pass through the file, determine the size parameters,
--   * and allocate space for everything.
--   */
-+  *pn = loading_prob->total_dimension;
-+  *pk = loading_prob->num_constraints;
-+  *pa = loading_prob->a;
-+  *pconstraints = loading_prob->constraints;
- 
 -  fid=fopen(fname,"r");
 - 
 -  if (fid == (FILE *) NULL)
@@ -576,20 +546,29 @@
 -        printf("Couldn't open problem file for reading! \n");
 -      exit(201);
 -    };
++  *pn = loading_prob->total_dimension;
++  *pk = loading_prob->num_constraints;
++  *pa = loading_prob->a;
++  *pconstraints = loading_prob->constraints;
++
 +  free_loading_prob(loading_prob);
  
    /*
--   * First, read through the comment lines.
+-   * This constant allows for up to 500000*20=10,000,000 byte long lines.
+-   * You might see a line this long in a problem with 500000 constraints.
 +   * If the printlevel is high, print out info on constraints and block
 +   * matrix structure.
     */
-- 
--  c=getc(fid);
--  while ((c == '"') || (c == '*'))
+-  
+-  buflen=8000000;
+-
+-  buf=(char *)malloc(buflen*sizeof(char));
+-  if (buf == NULL)
 +  if (printlevel >= 3)
      {
--      skip_to_end_of_line(fid);
--      c=getc(fid);
+-      if (printlevel >= 1)
+-        printf("Storage allocation failed!\n");
+-      exit(205);
 +      printf("Block matrix structure.\n");
 +      for (blk=1; blk<=pC->nblocks; blk++)
 +	    {
@@ -600,15 +579,61 @@
 +	    };
      };
  
--  ungetc(c,fid);
--
 -  /*
--   * Get the number of constraints (primal variables in SDPA terminology)
+-   * In the first pass through the file, determine the size parameters,
+-   * and allocate space for everything.
 -   */
--
++  return(0);
++}
+ 
+-  fid=fopen(fname,"r");
+- 
+-  if (fid == (FILE *) NULL)
+-    {
+-      if (printlevel >= 1)
+-        printf("Couldn't open problem file for reading! \n");
+-      exit(201);
+-    };
++int load_prob_from_file(fname,pC,problem,printlevel)
++     char *fname;
++     struct blockmatrix *pC;
++     struct LoadingProblem **problem;
++     int printlevel;
++
++{
++  int ret;
++  int buflen;
++  char *buf;
+ 
+   /*
+-   * First, read through the comment lines.
++   * This constant allows for up to 500000*20=10,000,000 byte long lines.
++   * You might see a line this long in a problem with 500000 constraints.
+    */
+- 
+-  c=getc(fid);
+-  while ((c == '"') || (c == '*'))
+-    {
+-      skip_to_end_of_line(fid);
+-      c=getc(fid);
+-    };
+ 
+-  ungetc(c,fid);
++  buflen = 8000000;
++
++  buf = (char *) safe_malloc(buflen*sizeof(char));
+ 
+   /*
+-   * Get the number of constraints (primal variables in SDPA terminology)
++   * In the first pass through the file, determine the size parameters,
++   * and allocate space for everything.
+    */
+ 
 -  ret=get_line(fid,buf,buflen);
 -  if (ret == 0)
--    {
++  ret = read_prob_size(fname,pC,buf,buflen,problem,printlevel);
++  if (ret != 0)
+     {
 -      ret=sscanf(buf,"%d",pk);
 -      if ((ret!=1) || (*pk<=0))
 -	{
@@ -617,7 +642,9 @@
 -	  fclose(fid);
 -	  return(1);
 -	};
--    }
++      free(buf);
++      return ret;
+     }
 -  else
 -    {
 -      if (printlevel >= 1)
@@ -625,21 +652,15 @@
 -      fclose(fid);
 -      return(1);
 -    };
-+  return(0);
-+}
  
 -#ifndef BIT64
--  /*
+   /*
 -   * If operating in 32 bit mode, make sure that the dimension mDIM isn't
 -   * too big for 32 bits.  If we don't do this check, then integer overflow
 -   * won't be detected, and we'll allocate a bogus amount of storage for
 -   * O.
--   */
-+int load_prob_from_file(fname,pC,problem,printlevel)
-+     char *fname;
-+     struct blockmatrix *pC;
-+     struct LoadingProblem **problem;
-+     int printlevel;
++   *  In the final pass through the file, fill in the actual data.
+    */
  
 -  if (*pk > 23169)
 -    {
@@ -648,19 +669,16 @@
 -      exit(206);
 -    };
 -#endif
-+{
-+  int ret;
-+  int buflen;
-+  char *buf;
- 
-   /*
+-
+-  /*
 -   * Read in the number of blocks.
-+   * This constant allows for up to 500000*20=10,000,000 byte long lines.
-+   * You might see a line this long in a problem with 500000 constraints.
-    */
+-   */
 -  ret=get_line(fid,buf,buflen);
 -  if (ret == 0)
--    {
++  ret = load_prob(fname,buf,buflen,*problem,printlevel);
++  free(buf);
++  if (ret != 0)
+     {
 -      ret=sscanf(buf,"%d",&nblocks);
 -      if ((ret != 1) || (nblocks <= 0))
 -	{
@@ -669,7 +687,9 @@
 -	  fclose(fid);
 -	  return(1);
 -	};
--    }
++      return ret;
++      free_loading_prob(*problem);
+     }
 -  else
 -    {
 -      if (printlevel >= 1)
@@ -681,35 +701,50 @@
 -  /*
 -   * Keep track of which blocks have off diagonal entries. 
 -   */
-+  buflen = 8000000;
++  return(0);
++}
  
 -  isdiag=(int *)malloc((nblocks+1)*sizeof(int));
 -  for (i=1; i<=nblocks; i++)
 -    isdiag[i]=1;
-+  buf = (char *) safe_malloc(buflen*sizeof(char));
++int load_prob(fname,buf,buflen,loading_prob,printlevel)
++     char *fname;
++     char *buf;
++     int buflen;
++     struct LoadingProblem *loading_prob;
++     int printlevel;
++{
++  char *ptr1;
++  char *ptr2;
++  FILE *fid;
++  int ret;
++  int mat;
++  int blk;
++  int indexi;
++  int indexj;
++  double ent;
  
++  fid = sdpa_fopen(fname, printlevel);
    /*
 -   * Allocate space for the C matrix.
-+   * In the first pass through the file, determine the size parameters,
-+   * and allocate space for everything.
++   * Skip the number of constraints (primal variables in SDPA terminology).
     */
- 
+-
 -  pC->nblocks=nblocks;
 -  pC->blocks=(struct blockrec *)malloc((nblocks+1)*sizeof(struct blockrec));
 -  if (pC->blocks == NULL)
-+  ret = read_prob_size(fname,pC,buf,buflen,problem,printlevel);
-+  if (ret != 0)
-     {
+-    {
 -      if (printlevel >= 1)
 -        printf("Storage allocation failed!\n");
 -      exit(205);
-+      free(buf);
-+      return ret;
-     }
- 
+-    }
+-
++  ret = safe_get_line(fid,buf,buflen,"mDIM",printlevel);
++  if (ret != 0) return(1);
    /*
 -   * Allocate space for the constraints.
--   */
++   * Skip the number of blocks.
+    */
 -
 -  myconstraints=(struct constraintmatrix *)malloc((*pk+1)*sizeof(struct constraintmatrix));
 -
@@ -720,36 +755,35 @@
 -      exit(205);
 -    };
 -  
--  /*
++  ret = safe_get_line(fid,buf,buflen,"nBLOCKS",printlevel);
++  if (ret != 0) return(1);
+   /*
 -   * Null out all pointers in constraints.
-+   *  In the final pass through the file, fill in the actual data.
++   * Skip the block structure.
     */
 -  for (i=1; i<=*pk; i++)
 -    {
 -      myconstraints[i].blocks=NULL;
 -    };
- 
+-
 -  *pa=(double *)malloc((*pk+1)*sizeof(double));
 -
 -  if (*pa == NULL)
-+  ret = load_prob(fname,buf,buflen,*problem,printlevel);
-+  free(buf);
-+  if (ret != 0)
-     {
+-    {
 -      if (printlevel >= 1)
 -        printf("Storage allocation failed!\n");
 -      exit(205);
 -    };
--
--  /*
++  ret = safe_get_line(fid,buf,buflen,"block sizes",printlevel);
++  if (ret != 0) return(1);
+ 
+   /*
 -   * And read the block structure.
--   */
++   *  Read in the right hand side values.
+    */
 -
 -  *pn=0;
-+      return ret;
-+      free_loading_prob(*problem);
-+    }
- 
+-
 -  ret=get_line(fid,buf,buflen);
 -  if (ret == 0)
 -    {
@@ -822,29 +856,11 @@
 -	      for (j=1; j<=blksz; j++)
 -		for (i=1; i<=blksz; i++)
 -		  pC->blocks[blk].data.mat[ijtok(i,j,blksz)]=0.0;
-+  return(0);
-+}
- 
+-
 -	    };
 -		
 -	};
-+int load_prob(fname,buf,buflen,loading_prob,printlevel)
-+     char *fname;
-+     char *buf;
-+     int buflen;
-+     struct LoadingProblem *loading_prob;
-+     int printlevel;
-+{
-+  char *ptr1;
-+  char *ptr2;
-+  FILE *fid;
-+  int ret;
-+  int mat;
-+  int blk;
-+  int indexi;
-+  int indexj;
-+  double ent;
- 
+-
 -    }
 -  else
 -    {
@@ -854,29 +870,17 @@
 -      free(isdiag);
 -      return(1);
 -    };
-+  fid = sdpa_fopen(fname, printlevel);
-+  // Skip the number of constraints (primal variables in SDPA terminology).
-+  ret = safe_get_line(fid,buf,buflen,"mDIM",printlevel);
+-
++  ret = safe_get_line(fid,buf,buflen,"values",printlevel);
 +  if (ret != 0) return(1);
-+  // Skip the number of blocks.
-+  ret = safe_get_line(fid,buf,buflen,"nBLOCKS",printlevel);
-+  if (ret != 0) return(1);
-+  // Skip the block structure.
-+  ret = safe_get_line(fid,buf,buflen,"block sizes",printlevel);
-+  if (ret != 0) return(1);
- 
    /*
-    *  Read in the right hand side values.
+-   *  Read in the right hand side values.
++   * Decode k numbers out of the buffer.  Put the results in
++   * a.
     */
 -
 -  ret=get_line(fid,buf,buflen);
 -  if (ret == 0)
-+  ret = safe_get_line(fid,buf,buflen,"values",printlevel);
-+  if (ret != 0) return(1);
-+  /*
-+   * Decode k numbers out of the buffer.  Put the results in
-+   * a.
-+   */
 +  ptr1 = buf;
 +  for (mat=1; mat<=loading_prob->num_constraints; mat++)
      {
@@ -998,7 +1002,7 @@
      };
  
 -  fclose(fid);
--
+ 
 -  /*
 -   * Now, go through each of the blks in each of the constraint matrices,
 -   * and allocate space for the entries and indices.
@@ -1021,7 +1025,7 @@
 -	    };
 -
 -	  p->iindices=(int *)malloc((p->numentries+1)*sizeof(int));
- 
+-
 -          if (p->iindices == NULL)
 -	    {
 -              if (printlevel >= 1)
@@ -1384,7 +1388,7 @@
        fclose(fid);
        free(isdiag);
        return(1);
-@@ -688,77 +380,76 @@ b	       */
+@@ -688,77 +386,76 @@ b	       */
     * are "hidden LP blocks"  and correct the block type if needed.
     */
  
@@ -1514,7 +1518,7 @@
   *  file fid.
   */
  
-@@ -766,12 +457,30 @@ void skip_to_end_of_line(fid)
+@@ -766,12 +463,30 @@ void skip_to_end_of_line(fid)
       FILE *fid;
  {
    char c;
@@ -1546,7 +1550,7 @@
  /*
   *  This routine reads a line of input into a buffer, and translates all
   *  occurences of "," "{" "}" "(" ")" to spaces.
-@@ -809,7 +518,7 @@ int get_line(fid,buffer,bufsiz)
+@@ -809,7 +524,7 @@ int get_line(fid,buffer,bufsiz)
        /*
         * return an error if the line is longer than the buffer!
         */
@@ -1555,7 +1559,7 @@
        if (k<bufsiz-5)
          return(0);
        else
-@@ -818,173 +527,3 @@ int get_line(fid,buffer,bufsiz)
+@@ -818,173 +533,3 @@ int get_line(fid,buffer,bufsiz)
    else
      return(2);
  }
