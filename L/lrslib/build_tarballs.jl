@@ -3,12 +3,12 @@
 using BinaryBuilder, Pkg
 
 name = "lrslib"
-version = v"0.3.3"
+version = v"0.3.4"
 
 # Collection of sources required to complete build
 sources = [
-    ArchiveSource("http://cgm.cs.mcgill.ca/~avis/C/lrslib/archive/lrslib-071b.tar.gz",
-                  "df22682cd742315fe04f866cfe4804d5950f7dc7f514d5b5f36f5b7f5aff9188"),
+    ArchiveSource("http://cgm.cs.mcgill.ca/~avis/C/lrslib/archive/beta/lrslib-072.tar.gz",
+                  "fc48754a1ded1d8445d40ecfbe3546e4f27d53aaee95dc2c8c0c79fb9cd532f0"),
 ]
 
 # Bash recipe for building across all platforms
@@ -53,7 +53,7 @@ ${CC} -shared ${cflags} -o "${libdir}/liblrsnash.${dlext}" lrsnashlib.c -L${libd
 
 # These are the platforms we will build for by default, unless further
 # platforms are passed in on the command line
-platforms = supported_platforms(; experimental=true)
+platforms = [p for p in supported_platforms() if Sys.islinux(p) && p.tags["arch"] == "x86_64"]
 
 # The products that we will ensure are always built
 products = [
